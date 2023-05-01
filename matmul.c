@@ -13,7 +13,7 @@ void matmul(float *A, float *B, float *C, int M, int N, int K,
   // Set the tile size
   int tile_size = 64;
 
-// Loop over the tiles of C
+  // Loop over the tiles of C
 #pragma omp parallel for num_threads(threads_per_process)
   for (int i = 0; i < M; i += tile_size)
   {
@@ -24,12 +24,16 @@ void matmul(float *A, float *B, float *C, int M, int N, int K,
         // Loop over the tiles of A and B
         for (int ii = i; ii < i + tile_size && ii < M; ii++)
         {
-          for (int kk = k; kk < k + tile_size && kk < K; kk++)
+          for (int jj = j; jj < j + tile_size && jj < N; jj += 16)
           {
-            for (int jj = j; jj < j + tile_size && jj < N; jj++)
+            __m512 c = _mm512_load_ps(&C[ii * N + jj]);
+            for (int kk = k; kk < k + tile_size && kk < K; kk++)
             {
-              C[ii * N + jj] += A[ii * K + kk] * B[kk * N + jj];
+              __m512 a = _mm512_broadcastss_ps(_mm_load_ss(&A[ii * K + kk]));
+              __m512 b = _mm512_loadu_ps(&B[kk * N + jj]);
+              c = _mm512_add_ps(c, _mm512_mul_ps(a, b));
             }
+            _mm512_store_ps(&C[ii * N + jj], c);
           }
         }
       }
